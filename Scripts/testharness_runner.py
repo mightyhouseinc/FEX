@@ -47,9 +47,10 @@ if path.exists(disabled_tests_runner_file):
 
 RunnerArgs = ["catchsegv", runner]
 # Add the rest of the arguments
-for i in range(len(sys.argv) - args_start_index):
-    RunnerArgs.append(sys.argv[args_start_index + i])
-
+RunnerArgs.extend(
+    sys.argv[args_start_index + i]
+    for i in range(len(sys.argv) - args_start_index)
+)
 if (disabled_tests.get(current_test)):
     print("Skipping", current_test)
     sys.exit(0)

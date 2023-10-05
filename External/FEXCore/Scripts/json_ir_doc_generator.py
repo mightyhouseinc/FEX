@@ -8,7 +8,7 @@ def get_ir_classes(ops, defines):
     global OpClasses
 
     for op_class, opslist in ops.items():
-        if not (op_class in OpClasses):
+        if op_class not in OpClasses:
             OpClasses[op_class] = []
 
         for op, op_val in opslist.items():
@@ -45,7 +45,7 @@ def print_ir_ops():
                     for line in desc:
                         output_file.write("%s\n\n" % line)
                 else:
-                    output_file.write("%s\n" % op_vals["Desc"])
+                    output_file.write("%s\n" % desc)
             else:
                 output_file.write("XXX: Missing op desc!\n")
 
@@ -60,10 +60,8 @@ if (len(sys.argv) < 3):
     sys.exit()
 
 output_filename = sys.argv[2]
-json_file = open(sys.argv[1], "r")
-json_text = json_file.read()
-json_file.close()
-
+with open(sys.argv[1], "r") as json_file:
+    json_text = json_file.read()
 json_object = json.loads(json_text)
 json_object = {k.upper(): v for k, v in json_object.items()}
 
@@ -72,14 +70,11 @@ defines = json_object["DEFINES"]
 
 get_ir_classes(ops, defines)
 
-output_file = open(output_filename, "w")
+with open(output_filename, "w") as output_file:
+    print_ir_op_index()
 
-print_ir_op_index()
+    output_file.write("# IR documentation\n\n")
 
-output_file.write("# IR documentation\n\n")
+    print_ir_ops()
 
-print_ir_ops()
-
-print_ir_defines(defines)
-
-output_file.close()
+    print_ir_defines(defines)

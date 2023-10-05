@@ -6,10 +6,7 @@ import tempfile
 import platform
 
 def ListContainsRequired(Features, RequiredFeatures):
-    for Req in RequiredFeatures:
-        if not Req in Features:
-            return False
-    return True
+    return all(Req in Features for Req in RequiredFeatures)
 
 def GetCPUFeaturesVersion():
 
@@ -19,12 +16,8 @@ def GetCPUFeaturesVersion():
     v8_3Mandatory = v8_2Mandatory + ["fcma", "jscvt", "lrcpc", "paca", "pacg"]
     v8_4Mandatory = v8_3Mandatory + ["asimddp", "flagm", "ilrcpc", "uscat"]
 
-    #  fphp asimdhp asimddp
-
-    File = open("/proc/cpuinfo", "r")
-    Lines = File.readlines()
-    File.close()
-
+    with open("/proc/cpuinfo", "r") as File:
+        Lines = File.readlines()
     # Minimum spec is ARMv8.0
     _ArchVersion = "8.0"
     for Line in Lines:
@@ -46,7 +39,7 @@ def GetCPUFeaturesVersion():
 
 def main():
     if (platform.machine() == "aarch64"):
-        print("ARMv{}".format(GetCPUFeaturesVersion()))
+        print(f"ARMv{GetCPUFeaturesVersion()}")
     elif (platform.machine() == "x86_64"):
         print("x64")
 

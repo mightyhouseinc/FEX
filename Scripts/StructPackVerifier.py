@@ -200,11 +200,7 @@ def HandleUnionDeclCursor(Arch, Cursor, NameOverride = ""):
     # Append namespace
     CursorName = ""
 
-    if (len(Cursor.spelling) == 0):
-        CursorName = NameOverride
-    else:
-        CursorName = Cursor.spelling
-
+    CursorName = NameOverride if (len(Cursor.spelling) == 0) else Cursor.spelling
     if (len(CursorName) != 0):
         Arch.NamespaceScope.append(CursorName)
         SetNamespace(Arch)
@@ -257,16 +253,6 @@ def HandleVarDeclElements(Arch, VarDecl, Cursor):
                     Arch.Parsed = False
             elif (Child.spelling == "fex-match"):
                 VarDecl.ExpectFEXMatch = True
-            else:
-                # Unknown annotation
-                pass
-        elif (Child.kind == CursorKind.TYPE_REF or
-              Child.kind == CursorKind.UNEXPOSED_EXPR or
-              Child.kind == CursorKind.PAREN_EXPR or
-              Child.kind == CursorKind.BINARY_OPERATOR
-              ):
-              pass
-
     return VarDecl
 
 
@@ -276,8 +262,8 @@ def HandleTypeDefDeclCursor(Arch, Cursor):
 
     TypeDefName = Cursor.type.get_typedef_name()
 
-    if (TypeDefType.kind == TypeKind.ELABORATED and CanonicalType.kind == TypeKind.RECORD):
-        if (len(TypeDefName) != 0):
+    if (len(TypeDefName) != 0):
+        if (TypeDefType.kind == TypeKind.ELABORATED and CanonicalType.kind == TypeKind.RECORD):
             HandleTypeDefDecl(Arch, Cursor, TypeDefName)
 
             # Append namespace
@@ -297,8 +283,7 @@ def HandleTypeDefDeclCursor(Arch, Cursor):
             # Pop namespace off
             Arch.NamespaceScope.pop()
             SetNamespace(Arch)
-    else:
-        if (len(TypeDefName) != 0):
+        else:
             Def = Cursor.get_definition()
 
             VarDecl = VarDeclDefinition(
@@ -330,9 +315,6 @@ def HandleStructElements(Arch, Struct, Cursor):
 
             elif (Child.spelling == "fex-match"):
                 Struct.ExpectFEXMatch = True
-            else:
-                # Unknown annotation
-                pass
         elif (Child.kind == CursorKind.FIELD_DECL):
             ParentType = Cursor.type
             FieldType = Child.type
@@ -391,19 +373,16 @@ def HandleStructElements(Arch, Struct, Cursor):
 def HandleTypeDefDecl(Arch, Cursor, Name):
     for Child in Cursor.get_children():
         if (Child.kind == CursorKind.UNION_DECL):
-            pass
-        elif (Child.kind == CursorKind.STRUCT_DECL):
+            continue
+        if (Child.kind == CursorKind.STRUCT_DECL):
             Arch = HandleStructDeclCursor(Arch, Child, Name)
-        elif (Child.kind == CursorKind.UNION_DECL):
-            Arch = HandleUnionDeclCursor(Arch, Child, Name)
         elif (Child.kind == CursorKind.TYPEDEF_DECL):
             Arch = HandleTypeDefDeclCursor(Arch, Child)
-        elif (Child.kind == CursorKind.TYPE_REF or
-              Child.kind == CursorKind.NAMESPACE_REF or
-              Child.kind == CursorKind.TEMPLATE_REF):
-            # Safe to pass on
-            pass
-        else:
+        elif Child.kind not in [
+            CursorKind.TYPE_REF,
+            CursorKind.NAMESPACE_REF,
+            CursorKind.TEMPLATE_REF,
+        ]:
             logging.critical ("Unhandled TypedefDecl {0}-{1}-{2}".format(Child.kind, Child.type.spelling, Child.spelling))
 
 def HandleCursor(Arch, Cursor):
@@ -440,10 +419,7 @@ def HandleCursor(Arch, Cursor):
             # Pop namespace off
             Arch.NamespaceScope.pop()
             SetNamespace(Arch)
-        elif (kind == CursorKind.TYPE_REF):
-            # Safe to pass on
-            pass
-        else:
+        elif kind != CursorKind.TYPE_REF:
             Arch = HandleCursor(Arch, Child)
 
     return Arch
@@ -487,11 +463,7 @@ def GetCompar(ComparisonName, DBs):
 
 def PrintMissingMembers(Struct1, Struct2):
     for Member1 in Struct1.Members:
-        WasMissing = True
-        for Member2 in Struct2.Members:
-            if (Member1.Name == Member2.Name):
-                WasMissing = False
-                break
+        WasMissing = all(Member1.Name != Member2.Name for Member2 in Struct2.Members)
         if (WasMissing):
             logging.error ("\t'{0}' member '{1}' Doesn't exist in '{2}'".format(Struct1.Name, Member1.Name, Struct2.Name));
 
@@ -529,8 +501,6 @@ def CompareStructs(Struct1, Struct2):
                     HadWarning = True
             else:
                 logging.critical ("Oops, didn't handle member type {0}".format(Member1.Type))
-        pass
-
     return not (HadWarning or HadError)
 
 def CompareAliases(DB, DBs):
@@ -546,7 +516,7 @@ def CompareAliases(DB, DBs):
         for Alias in StructDef.Aliases:
             OtherDB = DBs.DBs[Alias.AliasType]
             OtherStruct = OtherDB.Structs.get(Alias.Name)
-            if (OtherStruct == None):
+            if OtherStruct is None:
                 logging.critical ("Couldn't find alias {0} in {1} DB".format(Alias.Name, OtherDB.ArchName))
                 Passed = False
                 continue
@@ -565,7 +535,7 @@ def CompareAliases(DB, DBs):
         for Alias in VarDecl.Aliases:
             OtherDB = DBs.DBs[Alias.AliasType]
             OtherAlias = OtherDB.VarDecls.get(Alias.Name)
-            if (OtherAlias == None):
+            if OtherAlias is None:
                 logging.critical ("Couldn't find alias {0} in {1} DB".format(Alias.Name, OtherDB.ArchName))
                 Passed = False
                 continue
@@ -588,9 +558,9 @@ def CompareCrossArch(DB1, DB2):
             continue
 
         logging.info ("Comparing crossArch {0}".format(StructDef.Name))
-        if (StructDef.ExpectFEXMatch):
+        if StructDef.ExpectFEXMatch:
             Struct2 = DB2.Structs.get(StructDef.Name)
-            if (Struct2 == None):
+            if Struct2 is None:
                 logging.critical ("Couldn't find Struct {0} in {1} DB".format(StructDef.Name, DB2.ArchName))
                 Passed = False
                 continue
@@ -604,7 +574,7 @@ def main():
         logging.critical ("Python 3 or a more recent version is required.")
 
     if (len(sys.argv) < 2):
-        print ("usage: %s <options> <Header.hpp> <clang arguments...>" % (sys.argv[0]))
+        print(f"usage: {sys.argv[0]} <options> <Header.hpp> <clang arguments...>")
         print ("\t-c1 <Type1>: Base Comparison Type");
         print ("\t-c2 <Type2>: Second Comparison Type");
         print ("\t-win: Parse Windows");
@@ -616,8 +586,6 @@ def main():
     Header = ""
     Comparison1 = ""
     Comparison2 = ""
-    BaseArgs = []
-
     StartOfArgs = 0
 
     # Parse our arguments
@@ -628,16 +596,16 @@ def main():
             StartOfArgs = ArgIndex + 1
             break;
 
-        if (Arg == "-c1"):
+        if Arg == "-c1":
             ArgIndex += 1
             Comparison1 = sys.argv[ArgIndex]
-        elif (Arg == "-c2"):
+        elif Arg == "-c2":
             ArgIndex += 1
             Comparison2 = sys.argv[ArgIndex]
-        elif (Arg == "-win"):
+        elif Arg == "-no-linux":
+            ParseLinux = False
+        elif Arg == "-win":
             ParseWindows = True
-        elif (Arg == "-no-linux"):
-           ParseLinux = False
         else:
             Header = Arg
             StartOfArgs = ArgIndex + 1
@@ -646,17 +614,9 @@ def main():
         # Increment
         ArgIndex += 1
 
-    # Add arguments for clang
-    for ArgIndex in range(StartOfArgs, len(sys.argv)):
-        BaseArgs.append(sys.argv[ArgIndex])
-
-    args_x86_32 = [
-        "-I/usr/i686-linux-gnu/include",
-        "-O2",
-        "-m32",
-        "--target=i686-linux-unknown",
+    BaseArgs = [
+        sys.argv[ArgIndex] for ArgIndex in range(StartOfArgs, len(sys.argv))
     ]
-
     args_x86_64 = [
         "-I/usr/x86_64-linux-gnu/include",
         "-O2",
@@ -686,8 +646,13 @@ def main():
         "--target=x86_64-pc-win32",
     ]
 
-    # Add all the arguments to the different lists
-    args_x86_32.extend(BaseArgs)
+    args_x86_32 = [
+        "-I/usr/i686-linux-gnu/include",
+        "-O2",
+        "-m32",
+        "--target=i686-linux-unknown",
+        *BaseArgs,
+    ]
     args_x86_64.extend(BaseArgs)
     args_aarch64.extend(BaseArgs)
     args_x86_win32.extend(BaseArgs)
@@ -739,29 +704,27 @@ def main():
         Arch_x86_win64)
 
     Result = 0
-    if (len(Comparison1) != 0 and len(Comparison2) != 0):
-        CompDB1 = GetCompar(Comparison1, DBs)
-        CompDB2 = GetCompar(Comparison2, DBs)
+    if len(Comparison1) != 0:
+        if len(Comparison2) != 0:
+            CompDB1 = GetCompar(Comparison1, DBs)
+            CompDB2 = GetCompar(Comparison2, DBs)
 
-        # Now compare across the two compared architectures
-        Result = 0 if CompareCrossArch(CompDB1, CompDB2) else 1
-    elif (len(Comparison1) != 0):
-        CompDB1 = GetCompar(Comparison1, DBs)
+            # Now compare across the two compared architectures
+            Result = 0 if CompareCrossArch(CompDB1, CompDB2) else 1
+        else:
+            CompDB1 = GetCompar(Comparison1, DBs)
 
-        # First compare the aliases to make sure we are matching
-        Result = 0 if CompareAliases(CompDB1, DBs) else 1
+            # First compare the aliases to make sure we are matching
+            Result = 0 if CompareAliases(CompDB1, DBs) else 1
 
     if (Result == 1):
         logging.error("Execution environment")
         Args = "[ "
         for Arg in sys.argv:
-            Args += Arg + ", "
+            Args += f"{Arg}, "
         Args += " ]"
         logging.error(Args)
-        Args = ""
-        for Arg in sys.argv:
-            Args += "\"" + Arg + "\" "
-
+        Args = "".join("\"" + Arg + "\" " for Arg in sys.argv)
         logging.error(Args)
     return Result
 

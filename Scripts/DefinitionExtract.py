@@ -142,10 +142,8 @@ def HandleFunctionDeclCursor(Arch, Cursor):
 
     for Child in Cursor.get_children():
         if (Child.kind == CursorKind.TYPE_REF):
-            # This will give us the return type
-            # We skip this since we get it at the start instead
-            pass
-        elif (Child.kind == CursorKind.PARM_DECL):
+            continue
+        if (Child.kind == CursorKind.PARM_DECL):
             # This gives us a parameter type
             Function.Params.append(Child.type.spelling)
         elif (Child.kind == CursorKind.ASM_LABEL_ATTR):
@@ -154,12 +152,12 @@ def HandleFunctionDeclCursor(Arch, Cursor):
         elif (Child.kind == CursorKind.WARN_UNUSED_RESULT_ATTR):
             # Whatever you are we don't care about you
             return Arch
-        elif (Child.kind == CursorKind.VISIBILITY_ATTR or
-              Child.kind == CursorKind.UNEXPOSED_ATTR or
-              Child.kind == CursorKind.CONST_ATTR or
-              Child.kind == CursorKind.PURE_ATTR):
-            pass
-        else:
+        elif Child.kind not in [
+            CursorKind.VISIBILITY_ATTR,
+            CursorKind.UNEXPOSED_ATTR,
+            CursorKind.CONST_ATTR,
+            CursorKind.PURE_ATTR,
+        ]:
             logging.critical ("\tUnhandled FunctionDeclCursor {0}-{1}-{2}".format(Child.kind, Child.type.spelling, Child.spelling))
             sys.exit(-1)
 
@@ -235,11 +233,7 @@ def HandleUnionDeclCursor(Arch, Cursor, NameOverride = ""):
     # Append namespace
     CursorName = ""
 
-    if (len(Cursor.spelling) == 0):
-        CursorName = NameOverride
-    else:
-        CursorName = Cursor.spelling
-
+    CursorName = NameOverride if (len(Cursor.spelling) == 0) else Cursor.spelling
     if (len(CursorName) != 0):
         Arch.NamespaceScope.append(CursorName)
         SetNamespace(Arch)
@@ -292,16 +286,6 @@ def HandleVarDeclElements(Arch, VarDecl, Cursor):
                     Arch.Parsed = False
             elif (Child.spelling == "fex-match"):
                 VarDecl.ExpectedFEXMatch = True
-            else:
-                # Unknown annotation
-                pass
-        elif (Child.kind == CursorKind.TYPE_REF or
-              Child.kind == CursorKind.UNEXPOSED_EXPR or
-              Child.kind == CursorKind.PAREN_EXPR or
-              Child.kind == CursorKind.BINARY_OPERATOR
-              ):
-              pass
-
     return VarDecl
 
 def HandleTypeDefDeclCursor(Arch, Cursor):
@@ -310,8 +294,8 @@ def HandleTypeDefDeclCursor(Arch, Cursor):
 
     TypeDefName = Cursor.type.get_typedef_name()
 
-    if (TypeDefType.kind == TypeKind.ELABORATED and CanonicalType.kind == TypeKind.RECORD):
-        if (len(TypeDefName) != 0):
+    if (len(TypeDefName) != 0):
+        if (TypeDefType.kind == TypeKind.ELABORATED and CanonicalType.kind == TypeKind.RECORD):
             HandleTypeDefDecl(Arch, Cursor, TypeDefName)
 
 	    # Append namespace
@@ -331,8 +315,7 @@ def HandleTypeDefDeclCursor(Arch, Cursor):
             # Pop namespace off
             Arch.NamespaceScope.pop()
             SetNamespace(Arch)
-    else:
-        if (len(TypeDefName) != 0):
+        else:
             Def = Cursor.get_definition()
 
             VarDecl = VarDeclDefinition(
@@ -364,9 +347,6 @@ def HandleStructElements(Arch, Struct, Cursor):
 
             elif (Child.spelling == "fex-match"):
                 Struct.ExpectedFEXMatch = True
-            else:
-                # Unknown annotation
-                pass
         elif (Child.kind == CursorKind.FIELD_DECL):
             ParentType = Cursor.type
             FieldType = Child.type
@@ -425,20 +405,17 @@ def HandleStructElements(Arch, Struct, Cursor):
 def HandleTypeDefDecl(Arch, Cursor, Name):
     for Child in Cursor.get_children():
         if (Child.kind == CursorKind.UNION_DECL):
-            pass
-        elif (Child.kind == CursorKind.STRUCT_DECL):
+            continue
+        if (Child.kind == CursorKind.STRUCT_DECL):
             Arch = HandleStructDeclCursor(Arch, Child, Name)
-        elif (Child.kind == CursorKind.UNION_DECL):
-            Arch = HandleUnionDeclCursor(Arch, Child, Name)
         elif (Child.kind == CursorKind.TYPEDEF_DECL):
             Arch = HandleTypeDefDeclCursor(Arch, Child)
-        elif (Child.kind == CursorKind.TYPE_REF or
-              Child.kind == CursorKind.NAMESPACE_REF or
-              Child.kind == CursorKind.TEMPLATE_REF or
-              Child.kind == CursorKind.ALIGNED_ATTR):
-            # Safe to pass on
-            pass
-        else:
+        elif Child.kind not in [
+            CursorKind.TYPE_REF,
+            CursorKind.NAMESPACE_REF,
+            CursorKind.TEMPLATE_REF,
+            CursorKind.ALIGNED_ATTR,
+        ]:
             logging.critical ("Unhandled TypedefDecl {0}-{1}-{2}".format(Child.kind, Child.type.spelling, Child.spelling))
 
 def HandleCursor(Arch, Cursor):
@@ -516,18 +493,13 @@ def main():
         logging.critical ("Python 3 or a more recent version is required.")
 
     if (len(sys.argv) < 2):
-        print ("usage: %s <Header.hpp> <clang arguments...>" % (sys.argv[0]))
+        print(f"usage: {sys.argv[0]} <Header.hpp> <clang arguments...>")
 
     Header = ""
-    BaseArgs = []
-
     # Parse our arguments
     Header = sys.argv[1]
 
-    # Add arguments for clang
-    for ArgIndex in range(2, len(sys.argv)):
-        BaseArgs.append(sys.argv[ArgIndex])
-
+    BaseArgs = [sys.argv[ArgIndex] for ArgIndex in range(2, len(sys.argv))]
     args_x86_64 = [
         "-I/usr/include/x86_64-linux-gnu",
         "-I/usr/x86_64-linux-gnu/include/c++/10/x86_64-linux-gnu/",
@@ -535,10 +507,8 @@ def main():
         "-O2",
         "--target=x86_64-linux-unknown",
         "-D_M_X86_64",
+        *BaseArgs,
     ]
-
-    # Add all the arguments to the different lists
-    args_x86_64.extend(BaseArgs)
 
     # We need to find the default arguments through clang invocations
     args_x86_64 = FindClangArguments(args_x86_64)

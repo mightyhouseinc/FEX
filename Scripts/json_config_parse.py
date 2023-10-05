@@ -157,7 +157,7 @@ def parse_hexstring(s):
             byte_num = num[-2:]
             byte_data.append(int(byte_num, 16))
             length += 1
-            num = num[0:-2]
+            num = num[:-2]
     return length, byte_data
 
 

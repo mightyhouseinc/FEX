@@ -8,14 +8,12 @@ if (len(sys.argv) < 3):
     sys.exit()
 
 output_file = sys.argv[2]
-asm_file = open(sys.argv[1], "r")
-asm_text = asm_file.read()
-asm_file.close()
-
+with open(sys.argv[1], "r") as asm_file:
+    asm_text = asm_file.read()
 json_text = asm_text.split("%ifdef CONFIG")
 if (len(json_text) > 1):
-        json_text = json_text[1].split("%endif")
-        if (len(json_text) > 1):
-            json_text = json_text[0].strip()
+    json_text = json_text[1].split("%endif")
+if (len(json_text) > 1):
+    json_text = json_text[0].strip()
 
-            parse_json(json_text, output_file)
+    parse_json(json_text, output_file)

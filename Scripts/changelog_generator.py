@@ -14,7 +14,7 @@ Meta = { }
 for line in sys.stdin.readlines():
     if detailed := re.findall("^([A-Za-z0-9]+)/([A-Za-z0-9]+):(.+)$", line):
         detailed = detailed[0]
-        meta = detailed[0].strip() + "/" + detailed[1].strip()
+        meta = f"{detailed[0].strip()}/{detailed[1].strip()}"
         if meta not in Meta:
             Meta[meta] = []
         Meta[meta].append(detailed[2].strip())
@@ -33,24 +33,20 @@ print("FEX Release {0}".format(sys.argv[1]))
 Category = ""
 Tag = ""
 for item in sorted(Meta.items()):
-    if item[0] == "_Misc":
-        tag = "Misc"
-    else:
-        tag = item[0]
-
+    tag = "Misc" if item[0] == "_Misc" else item[0]
     category = tag.split("/")[0]
     if category != Category:
         Category = category
         Tag = ""
         print("")
-        print("- " + category)
-    if Tag != tag and tag != category:
+        print(f"- {category}")
+    if Tag != tag != category:
         Tag = tag
         print("")
         print(" - " + tag.split("/")[1])
-    
+
     for change in item[1]:
         if Tag == "":
-            print(" - " + change)
+            print(f" - {change}")
         else:
-            print("  - " + change)
+            print(f"  - {change}")
