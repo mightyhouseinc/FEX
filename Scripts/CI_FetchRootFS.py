@@ -50,12 +50,10 @@ def FindBestImageFit(Distro, links_file):
             DistroHash = f.readline().strip()
 
             FitRate = 0
-            if (DistroName == Distro[0] or
-                DistroName == None):
+            if DistroName == Distro[0] or DistroName is None:
                 FitRate += 1
 
-            if (DistroVersion == Distro[1] or
-                DistroVersion == None):
+            if DistroVersion == Distro[1] or DistroVersion is None:
                 FitRate += 1
 
             if FitRate > CurrentFitSize:
@@ -109,12 +107,12 @@ def CheckFilesystemForFS(RootFSMountPath, RootFSPath, DistroFit):
 
     # Check rootfs folder for image, copy and extract as necessary
     MountRootFSImagePath = RootFSMountPath + DistroFit[3]
-    RootFSImagePath = RootFSPath + "/" + os.path.basename(DistroFit[3])
+    RootFSImagePath = f"{RootFSPath}/{os.path.basename(DistroFit[3])}"
     NeedsExtraction = False
     PreviouslyExistingRootFS = False
 
     if not os.path.exists(MountRootFSImagePath):
-        print("Image {} doesn't exist".format(MountRootFSImagePath))
+        print(f"Image {MountRootFSImagePath} doesn't exist")
         return False
 
     if not os.path.exists(RootFSImagePath):
@@ -125,7 +123,7 @@ def CheckFilesystemForFS(RootFSMountPath, RootFSPath, DistroFit):
         NeedsExtraction = True
 
     # Check if the image needs to be extracted
-    if not os.path.exists(RootFSPath + "/usr"):
+    if not os.path.exists(f"{RootFSPath}/usr"):
         NeedsExtraction = True
     else:
         PreviouslyExistingRootFS = True
@@ -133,7 +131,9 @@ def CheckFilesystemForFS(RootFSMountPath, RootFSPath, DistroFit):
     # Now hash the image
     RootFSHash = HashFile(RootFSImagePath)
     if RootFSHash != DistroFit[4]:
-        print("Hash {} did not match {}, copying new image".format(hex(RootFSHash), hex(DistroFit[4])))
+        print(
+            f"Hash {hex(RootFSHash)} did not match {hex(DistroFit[4])}, copying new image"
+        )
 
         if PreviouslyExistingRootFS:
             RemoveRootFSFolder(RootFSPath)
@@ -150,7 +150,7 @@ def CheckFilesystemForFS(RootFSMountPath, RootFSPath, DistroFit):
             os.remove(RootFSImagePath)
             return False
 
-    if not os.path.exists(RootFSPath + "/usr"):
+    if not os.path.exists(f"{RootFSPath}/usr"):
         print("Couldn't extract squashfs. Removing image file to be safe")
         os.remove(RootFSImagePath)
         return False
@@ -166,11 +166,11 @@ def main():
     FEX_ROOTFS_MOUNT = os.getenv("FEX_ROOTFS_MOUNT")
     FEX_ROOTFS_PATH = os.getenv("FEX_ROOTFS_PATH")
 
-    if FEX_ROOTFS_MOUNT == None:
+    if FEX_ROOTFS_MOUNT is None:
         print("Need FEX_ROOTFS_MOUNT set")
         sys.exit(1)
 
-    if FEX_ROOTFS_PATH == None:
+    if FEX_ROOTFS_PATH is None:
         print("Need FEX_ROOTFS_PATH set")
         sys.exit(1)
 
@@ -179,7 +179,7 @@ def main():
         sys.exit(1)
 
     Distro = GetDistroInfo()
-    DistroFit = FindBestImageFit(Distro, FEX_ROOTFS_MOUNT + "/RootFS_links.txt")
+    DistroFit = FindBestImageFit(Distro, f"{FEX_ROOTFS_MOUNT}/RootFS_links.txt")
 
     if CheckFilesystemForFS(FEX_ROOTFS_MOUNT, FEX_ROOTFS_PATH, DistroFit) == False:
         print("Couldn't load filesystem rootfs")

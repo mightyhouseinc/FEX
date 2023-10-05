@@ -54,38 +54,25 @@ disabled_tests = LoadTestsFile(disabled_tests_file)
 flake_tests = LoadTestsFile(flake_tests_file)
 
 # run with timeout to avoid locking up
-RunnerArgs = []
-
-RunnerArgs.append(fexecutable)
+RunnerArgs = [fexecutable]
 
 if (mode == "guest"):
     ROOTFS_ENV = os.getenv("ROOTFS")
     if ROOTFS_ENV != None:
-        RunnerArgs.append("-R")
-        RunnerArgs.append(ROOTFS_ENV)
-
+        RunnerArgs.extend(("-R", ROOTFS_ENV))
 # Add the rest of the arguments
-for i in range(len(sys.argv) - StartingFEXArgsOffset):
-    RunnerArgs.append(sys.argv[StartingFEXArgsOffset + i])
-
-#print(RunnerArgs)
-
-ResultCode = 0
-
-# Handle flakes
-TryCount = 1
-if (flake_tests.get(test_name)):
-    TryCount = 5
-
-if (disabled_tests.get(test_name)):
-    ResultCode = -73
-
+RunnerArgs.extend(
+    sys.argv[StartingFEXArgsOffset + i]
+    for i in range(len(sys.argv) - StartingFEXArgsOffset)
+)
+TryCount = 5 if (flake_tests.get(test_name)) else 1
+ResultCode = -73 if (disabled_tests.get(test_name)) else 0
 # expect zero by default
-if (not test_name in expected_output):
+if test_name not in expected_output:
     expected_output[test_name] = 0
 
 if ResultCode == 0:
-    for Try in range(TryCount):
+    for _ in range(TryCount):
         # Run the test and wait for it to end to get the result
         print(RunnerArgs)
         Process = subprocess.Popen(RunnerArgs)

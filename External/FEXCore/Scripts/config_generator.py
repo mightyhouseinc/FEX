@@ -50,7 +50,7 @@ def print_options(options):
     for op_group, group_vals in options.items():
         for op_key, op_vals in group_vals.items():
             default = op_vals["Default"]
-            if (op_vals["Type"] == "str" or op_vals["Type"] == "strarray"):
+            if op_vals["Type"] in ["str", "strarray"]:
                 # Wrap the string argument in quotes
                 default = "\"" + default + "\""
 
@@ -67,7 +67,7 @@ def print_unnamed_options(options):
     for op_group, group_vals in options.items():
         for op_key, op_vals in group_vals.items():
             default = op_vals["Default"]
-            if (op_vals["Type"] == "str" or op_vals["Type"] == "strarray"):
+            if op_vals["Type"] in ["str", "strarray"]:
                 # Wrap the string argument in quotes
                 default = "\"" + default + "\""
 
@@ -132,9 +132,9 @@ def print_man_options(options):
             if ("TextDefault" in op_vals):
                 default = op_vals["TextDefault"]
 
-            if (op_vals["Type"] == "str" or op_vals["Type"] == "strarray"):
+            if op_vals["Type"] in ["str", "strarray"]:
                 # Wrap the string argument in quotes
-                default = "'" + default + "'"
+                default = f"'{default}'"
             print_man_option(
                 short,
                 long,
@@ -155,9 +155,9 @@ def print_man_environment(options):
             if ("TextDefault" in op_vals):
                 default = op_vals["TextDefault"]
 
-            if (op_vals["Type"] == "str" or op_vals["Type"] == "strarray"):
+            if op_vals["Type"] in ["str", "strarray"]:
                 # Wrap the string argument in quotes
-                default = "'" + default + "'"
+                default = f"'{default}'"
             print_man_env_option(
                 op_key,
                 op_vals["Desc"],
@@ -247,31 +247,31 @@ host-side thunks for guest communication
     output_man.write(tail)
 
 def print_config_option(type, group_name, json_name, default_value, short, choices, desc):
+    # Bool gets some special handling to add an inverted case
+    output_argloader.write("{0}Group".format(group_name))
+
+    options = ""
+    AddedArg = False
+    if (short != None):
+        AddedArg = True
+        options += "\"-{0}\"".format(short)
+
+    if (AddedArg):
+        options += ", "
+    options += "\"--{0}\"".format(json_name.lower())
+
+    output_argloader.write(".add_option({0})".format(options))
+
+    output_argloader.write("\n")
+
+    desc_line_ender = ""
     if (type == "bool"):
-        # Bool gets some special handling to add an inverted case
-        output_argloader.write("{0}Group".format(group_name))
-
-        options = ""
-        AddedArg = False
-        if (short != None):
-            AddedArg = True
-            options += "\"-{0}\"".format(short)
-
-        if (AddedArg):
-            options += ", "
-        options += "\"--{0}\"".format(json_name.lower())
-
-        output_argloader.write(".add_option({0})".format(options))
-
-        output_argloader.write("\n")
-
         output_argloader.write("\t.action(\"store_true\")\n")
 
         output_argloader.write("\t.dest(\"{0}\")\n".format(json_name));
 
         # help
         output_argloader.write("\t.help(\n")
-        desc_line_ender = ""
         if (len(desc) > 1):
             desc_line_ender = "\\n"
 
@@ -289,21 +289,6 @@ def print_config_option(type, group_name, json_name, default_value, short, choic
 
         output_argloader.write("\t.dest(\"{0}\");\n".format(json_name));
     else:
-        output_argloader.write("{0}Group".format(group_name))
-        options = ""
-        AddedArg = False
-        if (short != None):
-            AddedArg = True
-            options += "\"-{0}\"".format(short)
-
-        if (AddedArg):
-            options += ", "
-        options += "\"--{0}\"".format(json_name.lower())
-
-        output_argloader.write(".add_option({0})".format(options))
-
-        output_argloader.write("\n")
-
         output_argloader.write("\t.dest(\"{0}\")\n".format(json_name));
 
         if (choices != None):
@@ -315,7 +300,6 @@ def print_config_option(type, group_name, json_name, default_value, short, choic
 
         # help
         output_argloader.write("\t.help(\n")
-        desc_line_ender = ""
         if (len(desc) > 1):
             desc_line_ender = "\\n"
 
@@ -334,7 +318,7 @@ def print_argloader_options(options):
         for op_key, op_vals in group_vals.items():
             default = op_vals["Default"]
 
-            if (op_vals["Type"] == "str" or op_vals["Type"] == "strarray"):
+            if op_vals["Type"] in ["str", "strarray"]:
                 # Wrap the string argument in quotes
                 default = "\"" + default + "\""
 
@@ -424,7 +408,7 @@ def check_for_duplicate_options(options):
             if ("ShortArg" in op_vals):
                 short = op_vals["ShortArg"]
             if (op_vals["Type"] == "bool"):
-                long_invert = "no-" + long
+                long_invert = f"no-{long}"
 
             # Check for short key duplication
             if (short != None):
@@ -453,10 +437,8 @@ output_filename = sys.argv[2]
 output_man_page = sys.argv[3]
 output_argumentloader_filename = sys.argv[4]
 
-json_file = open(sys.argv[1], "r")
-json_text = json_file.read()
-json_file.close()
-
+with open(sys.argv[1], "r") as json_file:
+    json_text = json_file.read()
 json_object = json.loads(json_text)
 
 options = json_object["Options"]
@@ -464,29 +446,20 @@ unnamed_options = json_object["UnnamedOptions"]
 
 check_for_duplicate_options(options)
 
-# Generate config include file
-output_file = open(output_filename, "w")
-print_header()
-print_options(options)
-print_unnamed_options(unnamed_options)
-print_tail()
-output_file.close()
+with open(output_filename, "w") as output_file:
+    print_header()
+    print_options(options)
+    print_unnamed_options(unnamed_options)
+    print_tail()
+with open(output_man_page, "w") as output_man:
+    print_man_header()
+    print_man_options(options)
+    print_man_environment(options)
+    print_man_tail()
 
-# Generate man file
-output_man = open(output_man_page, "w")
-print_man_header()
-print_man_options(options)
-print_man_environment(options)
-print_man_tail()
+with open(output_argumentloader_filename, "w") as output_argloader:
+    print_argloader_options(options);
+    print_parse_argloader_options(options);
 
-output_man.close()
-
-# Generate argument loader code
-output_argloader = open(output_argumentloader_filename, "w")
-print_argloader_options(options);
-print_parse_argloader_options(options);
-
-# Generate environment loader code
-print_parse_envloader_options(options);
-
-output_argloader.close()
+    # Generate environment loader code
+    print_parse_envloader_options(options);

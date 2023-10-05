@@ -81,10 +81,8 @@ SyscallDefinitions = {}
 def ParseArchSyscalls(Defs, DefsDict, Arch, FilePath, IgnoreArch):
     global NumArches
     global SyscallDefinitions
-    syscall_file = open(FilePath, "r")
-    text_lines = syscall_file.readlines()
-    syscall_file.close()
-
+    with open(FilePath, "r") as syscall_file:
+        text_lines = syscall_file.readlines()
     NumArches += 1
     for line in text_lines:
         line = line.strip()
@@ -104,19 +102,14 @@ def ParseArchSyscalls(Defs, DefsDict, Arch, FilePath, IgnoreArch):
             continue
 
         Name = split_text[2]
-        if (len(split_text) < 4):
-            # This sometimes happens if the host doesn't have the entry
-            EntryName = "<None>"
-        else:
-            EntryName = split_text[3]
-
+        EntryName = "<None>" if (len(split_text) < 4) else split_text[3]
         if Name in DefinitionRenameDict:
             Name = DefinitionRenameDict[Name]
 
         Def = SyscallDefinition(Arch, Num, ABI, Name, EntryName)
 
         Defs.append(Def)
-        if not Name in SyscallDefinitions:
+        if Name not in SyscallDefinitions:
             SyscallDefinitions[Name] = []
 
         SyscallDefinitions[Name].append(Def)
@@ -124,10 +117,8 @@ def ParseArchSyscalls(Defs, DefsDict, Arch, FilePath, IgnoreArch):
 def ParseCommonArchSyscalls(Defs, DefsDict, Arch, FilePath):
     global NumArches
     global SyscallDefinitions
-    syscall_file = open(FilePath, "r")
-    text_lines = syscall_file.readlines()
-    syscall_file.close()
-
+    with open(FilePath, "r") as syscall_file:
+        text_lines = syscall_file.readlines()
     NumArches += 1
     SyscallNumbers = {}
     for line in text_lines:
@@ -187,7 +178,7 @@ def ParseCommonArchSyscalls(Defs, DefsDict, Arch, FilePath):
         Def = SyscallDefinition(Arch, Num, ABI, Name, EntryName)
 
         Defs.append(Def)
-        if not Name in SyscallDefinitions:
+        if Name not in SyscallDefinitions:
             SyscallDefinitions[Name] = []
 
         SyscallDefinitions[Name].append(Def)
@@ -195,16 +186,16 @@ def ParseCommonArchSyscalls(Defs, DefsDict, Arch, FilePath):
 def ExportSyscallDefines(Defs, DefsDict, Arch, UnsupportedDefs):
     AlreadyExported = []
 
-    print("enum Syscalls_{} {{".format(Arch))
+    print(f"enum Syscalls_{Arch} {{")
     for Def in Defs:
         if Def.EntryName == "<None>":
             print("  // No entrypoint. -ENOSYS")
-        print("  SYSCALL_{}_{} = {},".format(Arch, Def.Name, Def.Number))
+        print(f"  SYSCALL_{Arch}_{Def.Name} = {Def.Number},")
         AlreadyExported.append(Def.Name)
 
     # Print ourselves a max
     Max = 1 << (int(math.log(len(Defs), 2)) + 1)
-    print("  SYSCALL_{}_MAX = {},".format(Arch, Max))
+    print(f"  SYSCALL_{Arch}_MAX = {Max},")
 
     if len(UnsupportedDefs) != 0:
         # Print out syscalls that don't exist on this architecture
@@ -219,7 +210,7 @@ def ExportSyscallDefines(Defs, DefsDict, Arch, UnsupportedDefs):
                 if Def.Name in AlreadyExported:
                     continue
 
-                print("  SYSCALL_{}_{} = ~0,".format(Arch, Def.Name))
+                print(f"  SYSCALL_{Arch}_{Def.Name} = ~0,")
 
                 AlreadyExported.append(Def.name)
 
@@ -232,7 +223,7 @@ def ExportCommonSyscallDefines():
     print("enum FEX_Syscalls_Common {")
     for Def in Definitions_Arm64:
         # Check the dict to ensure the definitions exist everywhere
-        if not Def.Name in SyscallDefinitions:
+        if Def.Name not in SyscallDefinitions:
             continue
 
         Defs = SyscallDefinitions[Def.Name]
@@ -240,26 +231,22 @@ def ExportCommonSyscallDefines():
             continue
 
         Number = Def.Number
-        Matches = True
-        for AllDef in Defs:
-            if AllDef.Number != Def.Number:
-                Matches = False
-
+        Matches = all(AllDef.Number == Def.Number for AllDef in Defs)
         if not Matches:
             continue
 
         for AllDef in Defs:
             if AllDef.EntryName == "<None>":
-                print("  // {} No entrypoint. -ENOSYS".format(AllDef.Arch))
+                print(f"  // {AllDef.Arch} No entrypoint. -ENOSYS")
 
-        print("  SYS_{} = {},".format(Def.Name, Def.Number))
+        print(f"  SYS_{Def.Name} = {Def.Number},")
 
 
-    # Find a max between all architectures
-    Maximums = []
-    for Defs in [Definitions_x64, Definitions_x86, Definitions_Arm64]:
-        Maximums.append(1 << (int(math.log(len(Defs), 2)) + 1))
-    print("  SYSCALL_MAX = {},".format(max(Maximums)))
+    Maximums = [
+        1 << (int(math.log(len(Defs), 2)) + 1)
+        for Defs in [Definitions_x64, Definitions_x86, Definitions_Arm64]
+    ]
+    print(f"  SYSCALL_MAX = {max(Maximums)},")
 
     print("};")
 
@@ -269,7 +256,7 @@ def main():
         logging.critical ("Python 3 or a more recent version is required.")
 
     if (len(sys.argv) < 2):
-        print ("usage: %s <Linux git tree>" % (sys.argv[0]))
+        print(f"usage: {sys.argv[0]} <Linux git tree>")
 
     LinuxPath = sys.argv[1]
 

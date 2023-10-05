@@ -8,7 +8,7 @@ _Arch = None
 def GetArch():
     global _Arch
 
-    if _Arch == None:
+    if _Arch is None:
         _Arch = subprocess.check_output(['uname', '-m']).decode("utf-8").strip()
     return _Arch
 
@@ -20,12 +20,10 @@ def GetDistro():
     # /etc/lsb-release
     # /etc/os-release
 
-    if _Distro == None:
+    if _Distro is None:
         if os.path.exists("/etc/lsb-release"):
-            File = open("/etc/lsb-release", "r")
-            Lines = File.readlines()
-            File.close()
-
+            with open("/etc/lsb-release", "r") as File:
+                Lines = File.readlines()
             Found = 0
             Distro = ""
             Version = ""
@@ -44,10 +42,8 @@ def GetDistro():
                 return _Distro
 
         if os.path.exists("/etc/os-release"):
-            File = open("/etc/os-release", "r")
-            Lines = File.readlines()
-            File.close()
-
+            with open("/etc/os-release", "r") as File:
+                Lines = File.readlines()
             Found = 0
             Distro = ""
             Version = ""
@@ -81,18 +77,13 @@ def IsSupportedDistro():
     # We only support Ubuntu
     if Distro[0] == "ubuntu":
         # We only support what is available in ppa:fex-emu/fex
-        return Distro[1] == "20.04" or \
-            Distro[1] == "22.04" or \
-            Distro[1] == "22.10"
+        return Distro[1] in ["20.04", "22.04", "22.10"]
 
     return False
 
 _ArchVersion = None
 def ListContainsRequired(Features, RequiredFeatures):
-    for Req in RequiredFeatures:
-        if not Req in Features:
-            return False
-    return True
+    return all(Req in Features for Req in RequiredFeatures)
 
 def GetCPUFeaturesVersion():
     global _ArchVersion
@@ -105,11 +96,9 @@ def GetCPUFeaturesVersion():
 
     #  fphp asimdhp asimddp
 
-    if _ArchVersion == None:
-        File = open("/proc/cpuinfo", "r")
-        Lines = File.readlines()
-        File.close()
-
+    if _ArchVersion is None:
+        with open("/proc/cpuinfo", "r") as File:
+            Lines = File.readlines()
         # Minimum spec is ARMv8.0
         _ArchVersion = "8.0"
         for Line in Lines:
@@ -135,7 +124,7 @@ FEXPPA = "http://ppa.launchpad.net/fex-emu/fex/ubuntu"
 def GetPPAStatus():
     global _PPAInstalled
 
-    if _PPAInstalled == None:
+    if _PPAInstalled is None:
         _PPAInstalled = False
 
         CacheResults = subprocess.check_output(['apt-cache', 'policy']).decode("utf-8")
@@ -162,8 +151,6 @@ def InstallPPA():
         DidInstall = CmdResult == 0
     except KeyboardInterrupt:
         DidInstall = False
-        pass
-
     if DidInstall:
         print("PPA installed")
     else:
@@ -196,8 +183,6 @@ def UpdatePPA():
         DidUpdate = CmdResult == 0
     except KeyboardInterrupt:
         DidUpdate = False
-        pass
-
     if DidUpdate:
         print("PPA installed")
     else:
@@ -209,25 +194,15 @@ def CheckAndInstallPackageUpdates():
     PackagesToInstall = GetPackagesToInstall()
     for Package in PackagesToInstall[:]:
         UpgradableStatus = subprocess.check_output(["apt", "list", "--upgradable", Package]).decode("utf-8")
-        Found = False
-        for Line in UpgradableStatus.split("\n"):
-            # If the package exists to be upgraded then it will appear in this list
-            # We need to check multiple lines
-            # $ apt list --upgradable <Package>
-            # With upgrade available
-            # Listing... Done
-            # <Package>/<Repo> <NewVersion> <arch> [upgradable from: <Installed version>]
-            # Without upgrade available
-            # Listing... Done
-            # <EOF>
-            if Package in Line and "upgradable" in Line:
-                Found = True
-
-        if Found == False:
+        Found = any(
+            Package in Line and "upgradable" in Line
+            for Line in UpgradableStatus.split("\n")
+        )
+        if not Found:
             PackagesToInstall.remove(Package)
 
     if len(PackagesToInstall) > 0:
-        print ("Found updates for packages: {}".format(PackagesToInstall))
+        print(f"Found updates for packages: {PackagesToInstall}")
         print ("This bit may ask for your password")
 
         DidInstall = False
@@ -237,8 +212,6 @@ def CheckAndInstallPackageUpdates():
         except KeyboardInterrupt:
             print ("Keyboard interrupt")
             DidInstall = False
-            pass
-
         if DidInstall:
             print("Packages updated")
         else:
@@ -258,7 +231,7 @@ def CheckPackageInstallStatus():
     return PackagesToInstall
 
 def InstallPackages(Packages):
-    print("Installing packages: {}".format(Packages))
+    print(f"Installing packages: {Packages}")
 
     DidInstall = False
     try:
@@ -267,8 +240,6 @@ def InstallPackages(Packages):
     except KeyboardInterrupt:
         print ("Keyboard interrupt")
         DidInstall = False
-        pass
-
     if DidInstall:
         print("Packages installed")
     else:
@@ -280,12 +251,12 @@ _RootFSPath = None
 def GetRootFSPath():
     global _RootFSPath
 
-    if _RootFSPath == None:
+    if _RootFSPath is None:
         # Follows the same logic as FEXCore::Config::GetDataDirectory()
         HomeDir = os.getenv("HOME")
-        if HomeDir == None:
+        if HomeDir is None:
             HomeDir = os.getenv("PWD")
-        if HomeDir == None:
+        if HomeDir is None:
             HomeDir = "."
 
         Path = HomeDir
@@ -293,14 +264,10 @@ def GetRootFSPath():
         if DataXDG != None:
             Path = DataXDG
 
-        Path = Path + "/.fex-emu"
-
         DataOverride = os.getenv("FEX_APP_DATA_LOCATION")
 
-        if DataOverride != None:
-            Path = DataOverride
-
-        _RootFSPath = Path + "/RootFS/"
+        Path = DataOverride if DataOverride != None else f"{Path}/.fex-emu"
+        _RootFSPath = f"{Path}/RootFS/"
 
     return _RootFSPath
 
@@ -325,7 +292,6 @@ def TryInstallRootFS():
     except KeyboardInterrupt:
         print ("Keyboard interrupt")
         DidInstall = False
-        pass
     return DidInstall
 
 def TryBasicProgramExecution():
